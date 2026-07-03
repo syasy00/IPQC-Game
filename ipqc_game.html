@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IPQC Auditor Challenge</title>
+    <style>
+        :root {
+            --primary: #AE0000; /* AE Brand Red */
+            --dark: #1a1a1a;
+            --panel-bg: #2a2a2a;
+            --light: #F4F4F4;
+            --success: #28a745;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--dark);
+            color: var(--light);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        #game-container {
+            width: 100%;
+            max-width: 600px;
+            background: var(--panel-bg);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+            text-align: center;
+            box-sizing: border-box;
+            position: relative;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #444;
+            padding-bottom: 10px;
+        }
+
+        .timer {
+            font-size: 28px;
+            font-weight: 900;
+            color: #ffc107;
+            background: #111;
+            padding: 5px 20px;
+            border-radius: 8px;
+            border: 2px solid #444;
+        }
+
+        .instruction-banner {
+            background: #111;
+            border-left: 6px solid var(--primary);
+            padding: 12px;
+            margin-bottom: 15px;
+            font-weight: bold;
+            font-size: 17px;
+            color: #fff;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Screens */
+        .screen { display: none; }
+        .active { display: block; }
+
+        /* Interactive Area & Penalty Animation */
+        #interactive-area {
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        @keyframes penaltyFlash {
+            0% { box-shadow: inset 0 0 0 15px var(--primary); }
+            100% { box-shadow: inset 0 0 0 0px var(--primary); }
+        }
+        .penalty-flash {
+            animation: penaltyFlash 0.3s ease-out;
+        }
+
+        /* Canvas for Chassis Levels */
+        #canvas-container {
+            position: relative;
+            width: 100%;
+            background: #e0e0e0; 
+            border-radius: 8px;
+            aspect-ratio: 4 / 5;
+            cursor: crosshair;
+        }
+        canvas { width: 100%; height: 100%; display: block; }
+
+        #dragdrop-container, .dragdrop-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            height: 100%;
+        }
+        .drop-zones {
+            display: flex;
+            gap: 12px;
+        }
+        .drop-zone {
+            flex: 1;
+            min-height: 120px;
+            border: 3px dashed #555;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 16px;
+            line-height: 1.4;
+            color: #ccc;
+            background: #111;
+            transition: background 0.15s, border-color 0.15s, transform 0.15s;
+        }
+        .drop-zone.yes { border-color: rgba(40,167,69,0.6); }
+        .drop-zone.no { border-color: rgba(174,0,0,0.6); }
+        .drop-zone.hover-active { transform: scale(1.03); }
+        .drop-zone.yes.hover-active { background: #123a1c; border-color: var(--success); }
+        .drop-zone.no.hover-active { background: #3a1212; border-color: var(--primary); }
+
+        .tray {
+            flex: 1;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-content: flex-start;
+            justify-content: center;
+            background: #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            min-height: 250px;
+        }
+        .drag-item {
+            width: 85px;
+            height: 100px;
+            background: #333;
+            border: 2px solid #555;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: grab;
+            touch-action: none;
+            font-size: 34px;
+            box-sizing: border-box;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .drag-item .drag-label {
+            font-size: 12px;
+            font-weight: bold;
+            color: #eee;
+            margin-top: 5px;
+            text-align: center;
+            padding: 0 4px;
+            line-height: 1.2;
+        }
+        .drag-item.dragging {
+            position: fixed;
+            z-index: 1000;
+            pointer-events: none;
+            box-shadow: 0 12px 25px rgba(0,0,0,0.7);
+            transform: scale(1.15);
+            opacity: 0.95;
+            border-color: #fff;
+        }
+        .drag-item.wrong-flash {
+            animation: shake 0.3s;
+            border-color: var(--primary) !important;
+        }
+        .drag-item.correct-flash {
+            animation: pop 0.28s forwards;
+            border-color: var(--success) !important;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-8px); }
+            75% { transform: translateX(8px); }
+        }
+        @keyframes pop {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.3); opacity: 1; }
+            100% { transform: scale(0.1); opacity: 0; }
+        }
+
+        /* Buttons */
+        .btn {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 20px;
+            font-weight: 900;
+            border-radius: 30px;
+            cursor: pointer;
+            text-transform: uppercase;
+            box-shadow: 0 5px 15px rgba(174,0,0,0.5);
+        }
+        .btn:active { transform: scale(0.95); }
+        .verdict { font-size: 56px; font-weight: 900; margin: 20px 0; text-transform: uppercase; }
+        .pass-text { color: var(--success); }
+        .fail-text { color: var(--primary); }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    
+    <!-- START SCREEN -->
+    <div id="start-screen" class="screen active">
+        <h1 style="color: var(--primary); margin-top:0; font-size: 32px;">IPQC AUDITOR CHALLENGE</h1>
+        <p style="color: #aaa; font-size: 16px;">Process Inspection Verification Game</p>
+        <hr style="border: 1px solid #444; margin: 20px 0;">
+        <div style="text-align: left; background:#111; padding: 20px; border-radius: 8px; margin-bottom: 25px; font-size:16px; line-height: 1.6;">
+            <strong>INSTRUCTIONS:</strong><br>
+            • You have exactly <strong>2 minutes</strong>.<br>
+            • Complete 5 levels of quality control.<br>
+            • Read the yellow banner to know what to do.<br>
+            • Find defects, then drag & drop to classify the correct tools!
+        </div>
+        <button class="btn" onclick="startGame()">Start Audit</button>
+    </div>
+
+    <!-- GAMEPLAY SCREEN -->
+    <div id="game-screen" class="screen">
+        <header>
+            <div style="font-size: 20px; font-weight: bold;">Level: <span id="current-level">1</span>/5</div>
+            <div class="timer" id="timer-display">120.0s</div>
+        </header>
+        
+        <div class="instruction-banner" id="instruction-text">Loading instruction...</div>
+
+        <!-- Holds either the Canvas (Chassis) or the Grid (Tools) -->
+        <div id="interactive-area"></div>
+    </div>
+
+    <!-- END SCREEN -->
+    <div id="end-screen" class="screen">
+        <h2 style="margin-top:0; color: #fff;">AUDIT REPORT</h2>
+        <div id="verdict-container" class="verdict">PASS</div>
+        <p id="summary-text" style="font-size: 18px; color: #bbb; line-height: 1.5; margin-bottom: 30px;"></p>
+        <button class="btn" style="background-color: #555; box-shadow:none;" onclick="resetToStart()">Next Auditor</button>
+    </div>
+
+</div>
+
+<script>
+    let timer;
+    const TOTAL_TIME = 120.0; // Fixed to 2 minutes
+    let timeLeft = TOTAL_TIME;
+    let currentLevelIndex = 0;
+    let gameActive = false;
+    let startTime;
+
+    const interactiveArea = document.getElementById('interactive-area');
+
+    // Define the 5 levels cleanly
+    const levels = [
+        {
+            type: 'canvas',
+            instruction: "LEVEL 1: Find the incomplete AE logo!",
+            targetX: 205, targetY: 407, targetRadius: 25, // Specifically targets the 'AE' part
+            render: function(canvas, ctx) {
+                drawChassisBase(canvas, ctx);
+                // Incomplete Logo Drawing
+                ctx.fillStyle = '#AE0000';
+                ctx.font = 'bold 28px Arial';
+                ctx.fillText('SOLVIX by', 80, 420);
+                
+                ctx.beginPath();
+                ctx.moveTo(195, 420); ctx.lineTo(205, 395); ctx.lineTo(215, 420);
+                ctx.lineWidth = 4; ctx.strokeStyle = '#AE0000'; ctx.stroke();
+            }
+        },
+        {
+            type: 'canvas',
+            instruction: "LEVEL 2: Find the unpunched solid vent hole!",
+            targetX: 212, targetY: 212, targetRadius: 30, // Centered on column 4, row 5
+            render: function(canvas, ctx) {
+                drawChassisBase(canvas, ctx);
+                // Complete Logo
+                ctx.fillStyle = '#AE0000';
+                ctx.font = 'bold 28px Arial';
+                ctx.fillText('SOLVIX by AE', 65, 420);
+                
+                // Unpunched Vent Defect - perfectly aligned to grid
+                // Col 4 = 40 + (4*40) = 200, Row 5 = 50 + (5*30) = 200
+                ctx.fillStyle = '#c0c0c0';
+                ctx.fillRect(200, 200, 25, 25);
+                ctx.strokeStyle = '#999';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(200, 200, 25, 25);
+                
+                // Add metallic shine to fake solid metal
+                ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                ctx.fillRect(202, 202, 10, 10);
+            }
+        },
+        {
+            type: 'canvas',
+            instruction: "LEVEL 3: Find the dented chassis panel!",
+            targetX: 220, targetY: 350, targetRadius: 35,
+            render: function(canvas, ctx) {
+                drawChassisBase(canvas, ctx);
+                // Complete Logo
+                ctx.fillStyle = '#AE0000';
+                ctx.font = 'bold 28px Arial';
+                ctx.fillText('SOLVIX by AE', 65, 420);
+
+                // Dent shadow rendering
+                const dentX = 220, dentY = 350, dentRX = 25, dentRY = 18;
+                let grad = ctx.createRadialGradient(dentX, dentY, 2, dentX, dentY, dentRX);
+                grad.addColorStop(0, 'rgba(0,0,0,0.55)');
+                grad.addColorStop(0.6, 'rgba(0,0,0,0.28)');
+                grad.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.ellipse(dentX, dentY, dentRX, dentRY, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Highlight edge for 3D effect
+                ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.ellipse(dentX - 3, dentY - 3, dentRX * 0.75, dentRY * 0.75, 0, Math.PI, Math.PI * 1.9);
+                ctx.stroke();
+            }
+        },
+        {
+            type: 'dragdrop',
+            instruction: "LEVEL 4: Drag every INSPECTION TOOL into the correct bin!",
+            items: [
+                { name: "TQC Template Gauge", icon: "🎛️", isTarget: true },
+                { name: "Vernier Caliper", icon: "📏", isTarget: true },
+                { name: "Credit Card", icon: "💳", isTarget: false },
+                { name: "Blank Paper", icon: "📄", isTarget: false },
+                { name: "Staff ID Badge", icon: "🪪", isTarget: false }
+            ]
+        },
+        {
+            type: 'dragdrop',
+            instruction: "LEVEL 5: Drag every INSPECTION TOOL into the correct bin!",
+            items: [
+                { name: "Inspection Mirror", icon: "🔍", isTarget: true },
+                { name: "Feeler Gauge", icon: "📐", isTarget: true },
+                { name: "Kitchen Spoon", icon: "🥄", isTarget: false },
+                { name: "Paintbrush", icon: "🖌️", isTarget: false },
+                { name: "Standard Wrench", icon: "🔧", isTarget: false }
+            ]
+        }
+    ];
+
+    function drawChassisBase(canvas, ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.fillStyle = '#c0c0c0';
+        ctx.fillRect(20, 20, canvas.width - 40, canvas.height - 40);
+        
+        let grad = ctx.createLinearGradient(0, 0, canvas.width, 0);
+        grad.addColorStop(0, "rgba(255,255,255,0.4)");
+        grad.addColorStop(0.5, "rgba(255,255,255,0)");
+        grad.addColorStop(1, "rgba(0,0,0,0.1)");
+        ctx.fillStyle = grad;
+        ctx.fillRect(20, 20, canvas.width - 40, canvas.height - 40);
+
+        ctx.fillStyle = '#111';
+        for(let row = 0; row < 10; row++) {
+            for(let col = 0; col < 6; col++) {
+                let rx = 40 + (col * 40);
+                let ry = 50 + (row * 30);
+                ctx.fillRect(rx, ry, 25, 25);
+            }
+        }
+    }
+
+    function startGame() {
+        switchScreen('game-screen');
+        currentLevelIndex = 0;
+        timeLeft = TOTAL_TIME;
+        gameActive = true;
+        startTime = Date.now();
+        startTimer();
+        loadLevel();
+    }
+
+    function loadLevel() {
+        if(currentLevelIndex >= levels.length) {
+            endGame(true);
+            return;
+        }
+
+        const levelData = levels[currentLevelIndex];
+        document.getElementById('current-level').innerText = currentLevelIndex + 1;
+        document.getElementById('instruction-text').innerText = levelData.instruction;
+        
+        interactiveArea.innerHTML = '';
+        interactiveArea.className = ''; // Remove penalty class if lingering
+
+        if (levelData.type === 'canvas') {
+            setupCanvasLevel(levelData);
+        } else if (levelData.type === 'dragdrop') {
+            setupDragDropLevel(levelData);
+        }
+    }
+
+    function setupCanvasLevel(levelData) {
+        interactiveArea.innerHTML = '<div id="canvas-container"><canvas id="gameCanvas"></canvas></div>';
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        canvas.width = 300;
+        canvas.height = 500;
+        
+        levelData.render(canvas, ctx);
+
+        canvas.addEventListener('mousedown', function(e) {
+            if(!gameActive) return;
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const clickX = (e.clientX - rect.left) * scaleX;
+            const clickY = (e.clientY - rect.top) * scaleY;
+
+            const distance = Math.sqrt((clickX - levelData.targetX)**2 + (clickY - levelData.targetY)**2);
+            if(distance <= levelData.targetRadius) {
+                // Success: Give visual feedback before advancing
+                gameActive = false; // block extra clicks
+                ctx.beginPath();
+                ctx.arc(levelData.targetX, levelData.targetY, levelData.targetRadius, 0, Math.PI * 2);
+                ctx.strokeStyle = '#28a745';
+                ctx.lineWidth = 5;
+                ctx.stroke();
+                ctx.fillStyle = 'rgba(40, 167, 69, 0.4)';
+                ctx.fill();
+
+                setTimeout(() => {
+                    gameActive = true;
+                    advanceLevel();
+                }, 400); // 400ms delay to see the green circle
+            } else {
+                applyPenalty();
+            }
+        });
+    }
+
+    function setupDragDropLevel(levelData) {
+        interactiveArea.innerHTML = `
+            <div class="dragdrop-wrapper">
+                <div class="drop-zones">
+                    <div class="drop-zone yes" id="zone-yes">✅<br>INSPECTION<br>TOOL</div>
+                    <div class="drop-zone no" id="zone-no">❌<br>NOT A<br>TOOL</div>
+                </div>
+                <div class="tray" id="tray"></div>
+            </div>
+        `;
+
+        const tray = document.getElementById('tray');
+        const zoneYes = document.getElementById('zone-yes');
+        const zoneNo = document.getElementById('zone-no');
+
+        let remaining = levelData.items.length;
+        const shuffled = [...levelData.items].sort(() => 0.5 - Math.random());
+
+        function getZoneAt(x, y) {
+            const ry = zoneYes.getBoundingClientRect();
+            if(x >= ry.left && x <= ry.right && y >= ry.top && y <= ry.bottom) return 'yes';
+            const rn = zoneNo.getBoundingClientRect();
+            if(x >= rn.left && x <= rn.right && y >= rn.top && y <= rn.bottom) return 'no';
+            return null;
+        }
+
+        shuffled.forEach((item) => {
+            const el = document.createElement('div');
+            el.className = 'drag-item';
+            el.innerHTML = `<div>${item.icon}</div><div class="drag-label">${item.name}</div>`;
+            tray.appendChild(el);
+
+            let offsetX = 0, offsetY = 0, dragging = false, startW = 0, startH = 0;
+
+            el.addEventListener('pointerdown', (e) => {
+                if(!gameActive) return;
+                dragging = true;
+                el.setPointerCapture(e.pointerId);
+                const rect = el.getBoundingClientRect();
+                // Fix offset for the scale transform applied while dragging
+                offsetX = (e.clientX - rect.left) / 1.15;
+                offsetY = (e.clientY - rect.top) / 1.15;
+                startW = rect.width;
+                startH = rect.height;
+                el.style.width = startW + 'px';
+                el.style.height = startH + 'px';
+                el.classList.add('dragging');
+                moveTo(e.clientX, e.clientY);
+            });
+
+            el.addEventListener('pointermove', (e) => {
+                if(!dragging) return;
+                moveTo(e.clientX, e.clientY);
+                const z = getZoneAt(e.clientX, e.clientY);
+                zoneYes.classList.toggle('hover-active', z === 'yes');
+                zoneNo.classList.toggle('hover-active', z === 'no');
+            });
+
+            el.addEventListener('pointerup', (e) => {
+                if(!dragging) return;
+                dragging = false;
+                
+                // Safely release pointer capture to prevent touchscreen JS crashes (which causes stuck cards)
+                try {
+                    if(el.hasPointerCapture(e.pointerId)) {
+                        el.releasePointerCapture(e.pointerId);
+                    }
+                } catch(err) {}
+
+                el.classList.remove('dragging');
+                zoneYes.classList.remove('hover-active');
+                zoneNo.classList.remove('hover-active');
+
+                const dropTarget = getZoneAt(e.clientX, e.clientY);
+                if(dropTarget) {
+                    const guessedTool = (dropTarget === 'yes');
+                    const correct = guessedTool === item.isTarget;
+                    if(correct) {
+                        el.classList.add('correct-flash');
+                        el.style.pointerEvents = 'none';
+                        setTimeout(() => {
+                            el.remove();
+                            remaining--;
+                            if(remaining <= 0) advanceLevel();
+                        }, 260);
+                        return; // Keep the card over the bin while it animates out
+                    } else {
+                        el.classList.add('wrong-flash');
+                        applyPenalty();
+                        setTimeout(() => el.classList.remove('wrong-flash'), 300);
+                    }
+                }
+                
+                // If dropped outside or dropped in the wrong bin, snap it back to the tray
+                el.style.position = '';
+                el.style.left = '';
+                el.style.top = '';
+                el.style.width = '';
+                el.style.height = '';
+            });
+
+            function moveTo(x, y) {
+                el.style.position = 'fixed';
+                el.style.left = (x - offsetX) + 'px';
+                el.style.top = (y - offsetY) + 'px';
+            }
+        });
+    }
+
+    function advanceLevel() {
+        currentLevelIndex++;
+        loadLevel();
+    }
+
+    function applyPenalty() {
+        interactiveArea.classList.remove('penalty-flash');
+        // Trigger reflow to restart animation
+        void interactiveArea.offsetWidth;
+        interactiveArea.classList.add('penalty-flash');
+        timeLeft = Math.max(0, timeLeft - 2.0);
+        document.getElementById('timer-display').innerText = timeLeft.toFixed(1) + 's';
+    }
+
+    function startTimer() {
+        clearInterval(timer);
+        timer = setInterval(() => {
+            timeLeft -= 0.1;
+            if(timeLeft <= 0) {
+                timeLeft = 0;
+                clearInterval(timer);
+                endGame(false);
+            }
+            // Ensure we never show negative decimals like -0.1s
+            document.getElementById('timer-display').innerText = Math.max(0, timeLeft).toFixed(1) + 's';
+        }, 100);
+    }
+
+    function endGame(passed) {
+        gameActive = false;
+        clearInterval(timer);
+        switchScreen('end-screen');
+
+        const verdictBox = document.getElementById('verdict-container');
+        const summary = document.getElementById('summary-text');
+        const totalDuration = ((Date.now() - startTime) / 1000).toFixed(1);
+
+        if(passed) {
+            verdictBox.className = "verdict pass-text";
+            verdictBox.innerText = "PASS";
+            summary.innerHTML = `Audit complete! All defects & tools verified.<br><br><strong>Cycle Time:</strong> ${totalDuration} seconds<br><em>Award Grand Prize!</em>`;
+        } else {
+            verdictBox.className = "verdict fail-text";
+            verdictBox.innerText = "FAIL";
+            summary.innerHTML = `Audit failed! Time expired or items missed.<br><br><strong>Items Cleared:</strong> ${currentLevelIndex}/5<br><em>Hand over Consolation Treat.</em>`;
+        }
+    }
+
+    function switchScreen(screenId) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(screenId).classList.add('active');
+    }
+
+    function resetToStart() {
+        switchScreen('start-screen');
+    }
+</script>
+</body>
+</html>
