@@ -6,7 +6,7 @@
     <title>IPQC Auditor Challenge</title>
     <style>
         :root {
-            --primary: #AE0000; /* AE Brand Red */
+            --primary: #AE0000;
             --dark: #1a1a1a;
             --panel-bg: #2a2a2a;
             --light: #F4F4F4;
@@ -44,7 +44,6 @@
             overflow: hidden;
         }
 
-        /* More breathing room + bigger click targets on laptop-sized screens */
         @media (min-width: 700px) {
             #game-container { max-width: 680px; padding: 30px; }
             .drag-item { width: 100px; height: 115px; font-size: 38px; }
@@ -65,6 +64,12 @@
         .level-label { font-size: 18px; font-weight: bold; }
         .mistake-label { font-size: 12px; color: #ff8080; margin-top: 2px; font-weight: bold; }
 
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
         .timer {
             font-size: 28px;
             font-weight: 900;
@@ -74,19 +79,60 @@
             border-radius: 8px;
             border: 2px solid #444;
             flex-shrink: 0;
+            transition: color 0.2s, transform 0.2s;
+        }
+        .timer.low-time {
+            color: #ff5050;
+            animation: timerPulse 0.5s infinite;
+        }
+        @keyframes timerPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.08); }
+        }
+
+        .hint-btn {
+            background: #111;
+            border: 2px solid var(--gold);
+            color: var(--gold);
+            font-weight: 900;
+            font-size: 12px;
+            padding: 6px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
+        .hint-btn:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .hint-btn:not(:disabled):hover { filter: brightness(1.2); }
         }
 
         .instruction-banner {
             background: #111;
             border-left: 6px solid var(--primary);
             padding: 12px;
-            margin-bottom: 15px;
+            margin-bottom: 12px;
             font-weight: bold;
             font-size: 17px;
             color: #fff;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
+
+        .combo-meter {
+            font-size: 13px;
+            font-weight: 900;
+            color: #777;
+            margin-bottom: 10px;
+            min-height: 18px;
+            transition: color 0.2s, transform 0.2s;
+            letter-spacing: 0.5px;
+        }
+        .combo-meter.hot { color: var(--gold); transform: scale(1.05); }
+        .combo-meter.blazing { color: #ff8c00; transform: scale(1.12); }
 
         .hint {
             font-size: 13px;
@@ -95,26 +141,21 @@
             font-style: italic;
         }
 
-        /* Screens */
         .screen { display: none; }
         .active { display: block; }
 
-        /* Interactive Area & Penalty Animation */
         #interactive-area {
             position: relative;
             border-radius: 8px;
             overflow: hidden;
         }
-        
+
         @keyframes penaltyFlash {
             0% { box-shadow: inset 0 0 0 15px var(--primary); }
             100% { box-shadow: inset 0 0 0 0px var(--primary); }
         }
-        .penalty-flash {
-            animation: penaltyFlash 0.3s ease-out;
-        }
+        .penalty-flash { animation: penaltyFlash 0.3s ease-out; }
 
-        /* Toast (fun feedback popup) */
         .toast {
             position: absolute;
             top: 10px;
@@ -141,7 +182,6 @@
             100% { opacity: 0; transform: translate(-50%, -18px) scale(1); }
         }
 
-        /* Confetti */
         .confetti-piece {
             position: absolute;
             top: -30px;
@@ -155,7 +195,6 @@
             100% { transform: translateY(420px) rotate(540deg); opacity: 0; }
         }
 
-        /* Rank badge on end screen */
         .rank-badge {
             display: inline-block;
             font-size: 18px;
@@ -169,11 +208,10 @@
             letter-spacing: 0.5px;
         }
 
-        /* Canvas for Chassis Levels */
         #canvas-container {
             position: relative;
             width: 100%;
-            background: #e0e0e0; 
+            background: #e0e0e0;
             border-radius: 8px;
             aspect-ratio: 4 / 5;
             cursor: crosshair;
@@ -186,10 +224,7 @@
             gap: 15px;
             height: 100%;
         }
-        .drop-zones {
-            display: flex;
-            gap: 12px;
-        }
+        .drop-zones { display: flex; gap: 12px; }
         .drop-zone {
             flex: 1;
             min-height: 120px;
@@ -257,7 +292,6 @@
             line-height: 1.2;
         }
 
-        /* Mouse-only hover cue so laptop users know cards are interactive */
         @media (hover: hover) and (pointer: fine) {
             .drag-item:hover:not(.dragging):not(.selected) {
                 transform: translateY(-4px);
@@ -275,23 +309,21 @@
         .drag-item.dragging {
             position: fixed;
             z-index: 1000;
-            /* NOTE: pointer-events was intentionally removed here — see fix notes.
-               Leaving it "none" while the pointer is captured is what caused
-               cards to freeze mid-drag and never receive their pointerup. */
             box-shadow: 0 12px 25px rgba(0,0,0,0.7);
             transform: scale(1.15);
-            transform-origin: top left; /* keeps the card anchored under the cursor as it scales */
+            transform-origin: top left;
             opacity: 0.95;
             border-color: #fff;
             cursor: grabbing;
         }
-        .drag-item.wrong-flash {
-            animation: shake 0.3s;
-            border-color: var(--primary) !important;
+        .drag-item.wrong-flash { animation: shake 0.3s; border-color: var(--primary) !important; }
+        .drag-item.correct-flash { animation: pop 0.28s forwards; border-color: var(--success) !important; }
+        .drag-item.hint-glow {
+            animation: hintPulse 0.9s ease-in-out infinite;
         }
-        .drag-item.correct-flash {
-            animation: pop 0.28s forwards;
-            border-color: var(--success) !important;
+        @keyframes hintPulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(255,193,7,0.7); }
+            50% { box-shadow: 0 0 0 8px rgba(255,193,7,0); }
         }
 
         @keyframes shake {
@@ -305,7 +337,6 @@
             100% { transform: scale(0.1); opacity: 0; }
         }
 
-        /* Buttons */
         .btn {
             background-color: var(--primary);
             color: white;
@@ -325,25 +356,88 @@
         .verdict { font-size: 56px; font-weight: 900; margin: 20px 0; text-transform: uppercase; }
         .pass-text { color: var(--success); }
         .fail-text { color: var(--primary); }
+
+        .sequence-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            height: 100%;
+            justify-content: center;
+            align-items: center;
+            padding: 10px 0;
+        }
+        .sequence-status {
+            font-size: 16px;
+            font-weight: 900;
+            color: #ccc;
+            min-height: 24px;
+            text-align: center;
+        }
+        .bolt-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            background: #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .bolt {
+            position: relative;
+            width: 80px;
+            height: 80px;
+            background: #333;
+            border: 2px solid #555;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 34px;
+            cursor: pointer;
+            user-select: none;
+            transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s, background 0.15s;
+        }
+        .bolt-num {
+            position: absolute;
+            bottom: 4px;
+            right: 6px;
+            font-size: 11px;
+            font-weight: 900;
+            color: #aaa;
+        }
+        .bolt-lit {
+            background: #3a2c00;
+            border-color: var(--gold);
+            box-shadow: 0 0 0 6px rgba(255,193,7,0.35);
+            transform: scale(1.08);
+        }
+        .bolt-correct { animation: pop 0.28s forwards; border-color: var(--success) !important; }
+        .bolt-wrong { animation: shake 0.3s; border-color: var(--primary) !important; }
+        @media (hover: hover) and (pointer: fine) {
+            .bolt:hover:not(.bolt-lit) { transform: translateY(-3px); border-color: #888; }
+        }
+        @media (min-width: 700px) {
+            .bolt { width: 100px; height: 100px; font-size: 40px; }
+        }
     </style>
 </head>
 <body>
 
 <div id="game-container">
-    
+
     <!-- START SCREEN -->
     <div id="start-screen" class="screen active">
         <h1 style="color: var(--primary); margin-top:0; font-size: 32px;">🕵️ IPQC AUDITOR CHALLENGE</h1>
         <p style="color: #aaa; font-size: 16px;">Process Inspection Verification Game</p>
         <hr style="border: 1px solid #444; margin: 20px 0;">
+
         <div style="text-align: left; background:#111; padding: 20px; border-radius: 8px; margin-bottom: 25px; font-size:16px; line-height: 1.6;">
             <strong>INSTRUCTIONS:</strong><br>
-            • You have exactly <strong>2 minutes</strong> ⏱️.<br>
-            • Complete 5 levels of quality control.<br>
+            • Complete 3 levels of quality control before time runs out ⏱️.<br>
+            • Every run reshuffles the defects, tools, and layout — no two audits play the same.<br>
             • Read the yellow banner to know what to do.<br>
             • Find defects, then drag & drop (or click a tool, then click a bin) to classify!<br>
             • ⚠️ Beware of look-alike decoys hiding in the tool tray — read the label, not just the icon!<br>
-            • Chain correct answers for a 🔥 combo bonus streak.
+            • Chain correct answers for a 🔥 combo bonus, and burn a 🔍 hint if you're stuck (costs time).
         </div>
         <button class="btn" onclick="startGame()">Start Audit</button>
     </div>
@@ -352,15 +446,18 @@
     <div id="game-screen" class="screen">
         <header>
             <div class="header-left">
-                <div class="level-label">Level: <span id="current-level">1</span>/5</div>
+                <div class="level-label">Level: <span id="current-level">1</span>/3</div>
                 <div class="mistake-label">❌ Mistakes: <span id="mistake-count">0</span></div>
             </div>
-            <div class="timer" id="timer-display">120.0s</div>
+            <div class="header-right">
+                <button class="hint-btn" id="hint-btn" onclick="useHint()">🔍 Hint (<span id="hint-count">2</span>)</button>
+                <div class="timer" id="timer-display">120.0s</div>
+            </div>
         </header>
-        
-        <div class="instruction-banner" id="instruction-text">Loading instruction...</div>
 
-        <!-- Holds either the Canvas (Chassis) or the Grid (Tools) -->
+        <div class="instruction-banner" id="instruction-text">Loading instruction...</div>
+        <div class="combo-meter" id="combo-meter"></div>
+
         <div id="interactive-area"></div>
     </div>
 
@@ -370,6 +467,13 @@
         <div id="verdict-container" class="verdict">PASS</div>
         <div id="rank-badge" class="rank-badge">🏆 PERFECT AUDITOR</div>
         <p id="summary-text" style="font-size: 18px; color: #bbb; line-height: 1.5; margin-bottom: 30px;"></p>
+
+        <div id="score-panel" style="background:#111; border-radius:10px; padding:16px; margin-bottom:20px; text-align:left;">
+            <div style="font-size:14px; color:#999; text-transform:uppercase; letter-spacing:0.5px;">Final Score</div>
+            <div id="final-score" style="font-size:40px; font-weight:900; color:var(--gold);">0</div>
+            <div id="score-breakdown" style="font-size:13px; color:#aaa; line-height:1.6; margin-top:6px;"></div>
+        </div>
+
         <button class="btn" style="background-color: #555; box-shadow:none;" onclick="resetToStart()">Next Auditor</button>
     </div>
 
@@ -377,139 +481,195 @@
 
 <script>
     let timer;
-    const TOTAL_TIME = 120.0; // Fixed to 2 minutes
+    const GAME_SETTINGS = { time: 120.0, penalty: 2.0, radiusMult: 1.0 };
+    let TOTAL_TIME = GAME_SETTINGS.time;
     let timeLeft = TOTAL_TIME;
     let currentLevelIndex = 0;
     let gameActive = false;
     let startTime;
     let mistakes = 0;
     let streak = 0;
+    let maxStreak = 0;
+    let hintsLeft = 2;
+    const HINT_COST = 5.0;
 
     const interactiveArea = document.getElementById('interactive-area');
     const gameContainer = document.getElementById('game-container');
-
-    // Distance (px) the pointer must move before a press counts as a "drag"
-    // rather than a "click". Below this, we treat it as a select-tap instead.
     const DRAG_THRESHOLD = 6;
 
     const GOOD_TOASTS = ["🎯 Sharp eyes!", "🕵️ Nailed it!", "✅ Correct call!", "👌 Nice catch!"];
     const STREAK_TOASTS = { 3: "🔥 Combo x3!", 5: "🔥🔥 Combo x5! On fire!", 8: "🔥🔥🔥 Combo x8! Unstoppable!" };
-    const BAD_TOASTS = ["🚫 Gotcha — decoy!", "⚠️ -2s Penalty!", "❌ That's not it!", "🙈 Close, but no!"];
+    const BAD_TOASTS = ["🚫 Gotcha — decoy!", "⚠️ Penalty!", "❌ That's not it!", "🙈 Close, but no!"];
 
-    // Define the 5 levels cleanly
-    const levels = [
-        {
-            type: 'canvas',
-            instruction: "🔎 LEVEL 1: Find the incomplete AE logo!",
-            targetX: 205, targetY: 407, targetRadius: 25, // Specifically targets the 'AE' part
-            render: function(canvas, ctx) {
-                drawChassisBase(canvas, ctx);
-                // Incomplete Logo Drawing
-                ctx.fillStyle = '#AE0000';
-                ctx.font = 'bold 28px Arial';
-                ctx.fillText('SOLVIX by', 80, 420);
-                
-                ctx.beginPath();
-                ctx.moveTo(195, 420); ctx.lineTo(205, 395); ctx.lineTo(215, 420);
-                ctx.lineWidth = 4; ctx.strokeStyle = '#AE0000'; ctx.stroke();
-            }
-        },
-        {
-            type: 'canvas',
-            instruction: "🔎 LEVEL 2: Find the unpunched solid vent hole!",
-            targetX: 212, targetY: 212, targetRadius: 30, // Centered on column 4, row 5
-            render: function(canvas, ctx) {
-                drawChassisBase(canvas, ctx);
-                // Complete Logo
-                ctx.fillStyle = '#AE0000';
-                ctx.font = 'bold 28px Arial';
-                ctx.fillText('SOLVIX by AE', 65, 420);
-                
-                // Unpunched Vent Defect - perfectly aligned to grid
-                // Col 4 = 40 + (4*40) = 200, Row 5 = 50 + (5*30) = 200
-                ctx.fillStyle = '#c0c0c0';
-                ctx.fillRect(200, 200, 25, 25);
-                ctx.strokeStyle = '#999';
-                ctx.lineWidth = 1;
-                ctx.strokeRect(200, 200, 25, 25);
-                
-                // Add metallic shine to fake solid metal
-                ctx.fillStyle = 'rgba(255,255,255,0.4)';
-                ctx.fillRect(202, 202, 10, 10);
-            }
-        },
-        {
-            type: 'canvas',
-            instruction: "🔎 LEVEL 3: Find the dented chassis panel!",
-            targetX: 220, targetY: 350, targetRadius: 35,
-            render: function(canvas, ctx) {
-                drawChassisBase(canvas, ctx);
-                // Complete Logo
-                ctx.fillStyle = '#AE0000';
-                ctx.font = 'bold 28px Arial';
-                ctx.fillText('SOLVIX by AE', 65, 420);
-
-                // Dent shadow rendering
-                const dentX = 220, dentY = 350, dentRX = 25, dentRY = 18;
-                let grad = ctx.createRadialGradient(dentX, dentY, 2, dentX, dentY, dentRX);
-                grad.addColorStop(0, 'rgba(0,0,0,0.55)');
-                grad.addColorStop(0.6, 'rgba(0,0,0,0.28)');
-                grad.addColorStop(1, 'rgba(0,0,0,0)');
-                ctx.fillStyle = grad;
-                ctx.beginPath();
-                ctx.ellipse(dentX, dentY, dentRX, dentRY, 0, 0, Math.PI * 2);
-                ctx.fill();
-
-                // Highlight edge for 3D effect
-                ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-                ctx.lineWidth = 1.5;
-                ctx.beginPath();
-                ctx.ellipse(dentX - 3, dentY - 3, dentRX * 0.75, dentRY * 0.75, 0, Math.PI, Math.PI * 1.9);
-                ctx.stroke();
-            }
-        },
-        {
-            // Real tools from the IPQC inspection tray: TQC Template Gauge, Allen Key,
-            // Screw Bit, Safety Goggle. Decoys are everyday items chosen to LOOK like
-            // these tools at a glance (same rough shape/icon family) to test attention.
-            type: 'dragdrop',
-            instruction: "🧰 LEVEL 4: Drag every INSPECTION TOOL into the correct bin!",
-            items: [
-                { name: "TQC Template Gauge", icon: "📇", isTarget: true },
-                { name: "Allen Key", icon: "🔧", isTarget: true },
-                { name: "Screw Bit", icon: "🪛", isTarget: true },
-                { name: "Safety Goggle", icon: "🥽", isTarget: true },
-                { name: "Staff ID Badge", icon: "🪪", isTarget: false },
-                { name: "Standard Wrench", icon: "🔩", isTarget: false },
-                { name: "Pencil", icon: "✏️", isTarget: false },
-                { name: "Sunglasses", icon: "😎", isTarget: false }
-            ]
-        },
-        {
-            // Real tools: Verify Jig (2x Connector), Inspection Mirror, Loupe, Flashlight.
-            // Decoys mirror their silhouette/emoji closely so players must read labels,
-            // not just glance at the icon.
-            type: 'dragdrop',
-            instruction: "🧰 LEVEL 5: Drag every INSPECTION TOOL into the correct bin!",
-            items: [
-                { name: "Verify Jig (2x Connector)", icon: "🧩", isTarget: true },
-                { name: "Inspection Mirror", icon: "🪞", isTarget: true },
-                { name: "Loupe", icon: "🔍", isTarget: true },
-                { name: "Flashlight", icon: "🔦", isTarget: true },
-                { name: "Ice Cube Tray", icon: "🧊", isTarget: false },
-                { name: "Selfie Stick", icon: "🤳", isTarget: false },
-                { name: "Toy Magnifying Glass", icon: "🔎", isTarget: false },
-                { name: "Laser Pointer Pen", icon: "🖊️", isTarget: false }
-            ]
+    // ---- Sound (Web Audio, no external assets) ----
+    let audioCtx = null;
+    function getAudioCtx() {
+        if (!audioCtx) {
+            try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { audioCtx = null; }
         }
+        return audioCtx;
+    }
+    function playTone(freq, duration, type, gainStart) {
+        const ctx = getAudioCtx();
+        if (!ctx) return;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type || 'sine';
+        osc.frequency.value = freq;
+        gain.gain.value = gainStart || 0.12;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        const now = ctx.currentTime;
+        gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+        osc.start(now);
+        osc.stop(now + duration);
+    }
+    function sfxCorrect() {
+        playTone(660, 0.12, 'triangle');
+        setTimeout(() => playTone(880, 0.14, 'triangle'), 90);
+    }
+    function sfxWrong() {
+        playTone(160, 0.28, 'sawtooth', 0.09);
+    }
+    function sfxHint() {
+        playTone(440, 0.1, 'sine', 0.08);
+        setTimeout(() => playTone(550, 0.12, 'sine', 0.08), 70);
+    }
+    function sfxLevelUp() {
+        playTone(523, 0.1, 'triangle');
+        setTimeout(() => playTone(659, 0.1, 'triangle'), 100);
+        setTimeout(() => playTone(784, 0.18, 'triangle'), 200);
+    }
+    function sfxWin() {
+        [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => playTone(f, 0.22, 'triangle'), i * 110));
+    }
+    function sfxLose() {
+        playTone(300, 0.2, 'sawtooth', 0.08);
+        setTimeout(() => playTone(200, 0.35, 'sawtooth', 0.08), 180);
+    }
+    function sfxTick() {
+        playTone(880, 0.05, 'square', 0.05);
+    }
+
+    function shuffleArray(arr) {
+        return [...arr].sort(() => 0.5 - Math.random());
+    }
+
+    // Pool of tools shared by the sorting level; a random subset is drawn each run.
+    const TOOL_ITEMS = [
+        { name: "TQC Template Gauge", icon: "📇", isTarget: true },
+        { name: "Allen Key", icon: "🔧", isTarget: true },
+        { name: "Screw Bit", icon: "🪛", isTarget: true },
+        { name: "Safety Goggle", icon: "🥽", isTarget: true },
+        { name: "Verify Jig (2x Connector)", icon: "🧩", isTarget: true },
+        { name: "Inspection Mirror", icon: "🪞", isTarget: true },
+        { name: "Loupe", icon: "🔍", isTarget: true },
+        { name: "Flashlight", icon: "🔦", isTarget: true },
+        { name: "Staff ID Badge", icon: "🪪", isTarget: false },
+        { name: "Standard Wrench", icon: "🔩", isTarget: false },
+        { name: "Pencil", icon: "✏️", isTarget: false },
+        { name: "Sunglasses", icon: "😎", isTarget: false },
+        { name: "Ice Cube Tray", icon: "🧊", isTarget: false },
+        { name: "Selfie Stick", icon: "🤳", isTarget: false },
+        { name: "Toy Magnifying Glass", icon: "🔎", isTarget: false },
+        { name: "Laser Pointer Pen", icon: "🖊️", isTarget: false }
     ];
 
-    function drawChassisBase(canvas, ctx) {
+    // LEVEL 1: find all 3 defects on the chassis — the incomplete logo, a
+    // dent in the panel, and an unpunched vent hole. Positions shift each
+    // run so the level stays fresh on replay.
+    function buildDefectHuntLevel() {
+        const dx = Math.round((Math.random() * 2 - 1) * 30);
+
+        // Pick a random vent-grid cell to leave unpunched.
+        const skipRow = Math.floor(Math.random() * 10);
+        const skipCol = Math.floor(Math.random() * 6);
+        const holeX = 40 + skipCol * 40 + 12.5;
+        const holeY = 50 + skipRow * 30 + 12.5;
+
+        // Place the dent somewhere in the open panel area (right-hand strip,
+        // clear of the vent grid and the logo).
+        const dentX = 235 + Math.random() * 20;
+        const dentY = 345 + Math.random() * 25;
+
+        return {
+            type: 'canvas',
+            instruction: "🔎 LEVEL 1: Find all 3 defects — incomplete logo, dent, and unpunched hole!",
+            targets: [
+                { x: 205 + dx, y: 407, radius: 25, cellKey: 'logo' },
+                { x: dentX, y: dentY, radius: 18, cellKey: 'dent' },
+                { x: holeX, y: holeY, radius: 18, cellKey: 'hole' }
+            ],
+            render: function(canvas, ctx) {
+                drawChassisBase(canvas, ctx, { skipRow, skipCol });
+
+                // Dent: a soft dark radial shadow suggesting a caved-in panel.
+                ctx.save();
+                const dentGrad = ctx.createRadialGradient(dentX, dentY, 2, dentX, dentY, 16);
+                dentGrad.addColorStop(0, 'rgba(0,0,0,0.45)');
+                dentGrad.addColorStop(0.6, 'rgba(0,0,0,0.2)');
+                dentGrad.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = dentGrad;
+                ctx.beginPath();
+                ctx.ellipse(dentX, dentY, 16, 12, 0.3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+
+                // Incomplete logo.
+                ctx.fillStyle = '#AE0000';
+                ctx.font = 'bold 28px Arial';
+                ctx.fillText('SOLVIX by', 80 + dx, 420);
+                ctx.beginPath();
+                ctx.moveTo(195 + dx, 420); ctx.lineTo(205 + dx, 395); ctx.lineTo(215 + dx, 420);
+                ctx.lineWidth = 4; ctx.strokeStyle = '#AE0000'; ctx.stroke();
+            }
+        };
+    }
+
+    // LEVEL 2: tool sorting, now drawing a random 4-target / 4-decoy hand from
+    // a pool of 16 each run instead of a fixed list.
+    function buildToolSortLevel() {
+        const targets = shuffleArray(TOOL_ITEMS.filter(i => i.isTarget)).slice(0, 4);
+        const decoys = shuffleArray(TOOL_ITEMS.filter(i => !i.isTarget)).slice(0, 4);
+        const items = shuffleArray([...targets, ...decoys]);
+        return {
+            type: 'dragdrop',
+            instruction: "🧰 LEVEL 2: Drag every INSPECTION TOOL into the correct bin!",
+            items
+        };
+    }
+
+    // LEVEL 3: a torque-check memory game. Bolts flash in a random order;
+    // the player must tap them back in the same order. This is a different
+    // skill (memory + sequencing) from the click-a-spot and drag-drop levels.
+    function buildSequenceLevel() {
+        const boltCount = 6;
+        const seqLength = 4 + Math.floor(Math.random() * 2); // 4 or 5
+        const sequence = shuffleArray([0, 1, 2, 3, 4, 5]).slice(0, seqLength);
+        return {
+            type: 'sequence',
+            instruction: "🔧 LEVEL 3: Watch the torque-check sequence, then tap the bolts in the same order!",
+            boltCount,
+            sequence
+        };
+    }
+
+    let levels = [];
+    function buildLevels() {
+        levels = [ buildDefectHuntLevel(), buildToolSortLevel(), buildSequenceLevel() ];
+    }
+
+    let activeCanvasState = null;
+    let activeDragState = null;
+    let activeSequenceState = null;
+
+    function drawChassisBase(canvas, ctx, opts) {
+        opts = opts || {};
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
+
         ctx.fillStyle = '#c0c0c0';
         ctx.fillRect(20, 20, canvas.width - 40, canvas.height - 40);
-        
+
         let grad = ctx.createLinearGradient(0, 0, canvas.width, 0);
         grad.addColorStop(0, "rgba(255,255,255,0.4)");
         grad.addColorStop(0.5, "rgba(255,255,255,0)");
@@ -518,8 +678,9 @@
         ctx.fillRect(20, 20, canvas.width - 40, canvas.height - 40);
 
         ctx.fillStyle = '#111';
-        for(let row = 0; row < 10; row++) {
-            for(let col = 0; col < 6; col++) {
+        for (let row = 0; row < 10; row++) {
+            for (let col = 0; col < 6; col++) {
+                if (row === opts.skipRow && col === opts.skipCol) continue;
                 let rx = 40 + (col * 40);
                 let ry = 50 + (row * 30);
                 ctx.fillRect(rx, ry, 25, 25);
@@ -539,36 +700,65 @@
         return arr[Math.floor(Math.random() * arr.length)];
     }
 
+    function updateComboMeter() {
+        const el = document.getElementById('combo-meter');
+        if (streak <= 0) {
+            el.innerText = '';
+            el.className = 'combo-meter';
+            return;
+        }
+        el.className = 'combo-meter' + (streak >= 8 ? ' blazing' : streak >= 3 ? ' hot' : '');
+        const flames = streak >= 8 ? '🔥🔥🔥' : streak >= 5 ? '🔥🔥' : streak >= 3 ? '🔥' : '✨';
+        el.innerText = `${flames} Streak: ${streak}`;
+    }
+
     function registerCorrect() {
         streak++;
+        if (streak > maxStreak) maxStreak = streak;
+        sfxCorrect();
         if (STREAK_TOASTS[streak]) {
             showToast(STREAK_TOASTS[streak], false);
         } else {
             showToast(pickRandom(GOOD_TOASTS), false);
         }
+        updateComboMeter();
     }
 
     function registerMistake() {
         streak = 0;
         mistakes++;
+        sfxWrong();
         document.getElementById('mistake-count').innerText = mistakes;
         showToast(pickRandom(BAD_TOASTS), true);
+        updateComboMeter();
     }
 
     function startGame() {
         switchScreen('game-screen');
         currentLevelIndex = 0;
+        TOTAL_TIME = GAME_SETTINGS.time;
         timeLeft = TOTAL_TIME;
         mistakes = 0;
         streak = 0;
+        maxStreak = 0;
+        hintsLeft = 2;
+        document.getElementById('hint-count').innerText = hintsLeft;
+        document.getElementById('hint-btn').disabled = false;
         document.getElementById('mistake-count').innerText = 0;
+        document.getElementById('timer-display').classList.remove('low-time');
+        updateComboMeter();
         gameActive = true;
         startTime = Date.now();
+        buildLevels();
         startTimer();
         loadLevel();
     }
 
     function loadLevel() {
+        activeCanvasState = null;
+        activeDragState = null;
+        activeSequenceState = null;
+
         if(currentLevelIndex >= levels.length) {
             endGame(true);
             return;
@@ -577,14 +767,16 @@
         const levelData = levels[currentLevelIndex];
         document.getElementById('current-level').innerText = currentLevelIndex + 1;
         document.getElementById('instruction-text').innerText = levelData.instruction;
-        
+
         interactiveArea.innerHTML = '';
-        interactiveArea.className = ''; // Remove penalty class if lingering
+        interactiveArea.className = '';
 
         if (levelData.type === 'canvas') {
             setupCanvasLevel(levelData);
         } else if (levelData.type === 'dragdrop') {
             setupDragDropLevel(levelData);
+        } else if (levelData.type === 'sequence') {
+            setupSequenceLevel(levelData);
         }
     }
 
@@ -592,11 +784,15 @@
         interactiveArea.innerHTML = '<div id="canvas-container"><canvas id="gameCanvas"></canvas></div>';
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        
+
         canvas.width = 300;
         canvas.height = 500;
-        
-        levelData.render(canvas, ctx);
+
+        const foundKeys = new Set();
+        const render = () => levelData.render(canvas, ctx, foundKeys);
+        render();
+
+        activeCanvasState = { canvas, ctx, targets: levelData.targets, foundKeys, render };
 
         canvas.addEventListener('mousedown', function(e) {
             if(!gameActive) return;
@@ -606,27 +802,114 @@
             const clickX = (e.clientX - rect.left) * scaleX;
             const clickY = (e.clientY - rect.top) * scaleY;
 
-            const distance = Math.sqrt((clickX - levelData.targetX)**2 + (clickY - levelData.targetY)**2);
-            if(distance <= levelData.targetRadius) {
-                // Success: Give visual feedback before advancing
-                gameActive = false; // block extra clicks
+            const radiusMult = GAME_SETTINGS.radiusMult;
+            let hit = null;
+            for (const t of levelData.targets) {
+                const key = t.cellKey || 'single';
+                if (foundKeys.has(key)) continue;
+                const r = t.radius * radiusMult;
+                if (Math.hypot(clickX - t.x, clickY - t.y) <= r) { hit = t; break; }
+            }
+
+            if (hit) {
+                const key = hit.cellKey || 'single';
+                foundKeys.add(key);
                 registerCorrect();
+                render();
+                const r = hit.radius * radiusMult;
                 ctx.beginPath();
-                ctx.arc(levelData.targetX, levelData.targetY, levelData.targetRadius, 0, Math.PI * 2);
+                ctx.arc(hit.x, hit.y, r, 0, Math.PI * 2);
                 ctx.strokeStyle = '#28a745';
                 ctx.lineWidth = 5;
                 ctx.stroke();
                 ctx.fillStyle = 'rgba(40, 167, 69, 0.4)';
                 ctx.fill();
 
-                setTimeout(() => {
-                    gameActive = true;
-                    advanceLevel();
-                }, 400); // 400ms delay to see the green circle
+                const allFound = levelData.targets.every(t => foundKeys.has(t.cellKey || 'single'));
+                if (allFound) {
+                    gameActive = false;
+                    setTimeout(() => {
+                        gameActive = true;
+                        sfxLevelUp();
+                        advanceLevel();
+                    }, 400);
+                }
             } else {
                 applyPenalty();
             }
         });
+    }
+
+    function setupSequenceLevel(levelData) {
+        interactiveArea.innerHTML = `
+            <div class="sequence-wrapper">
+                <div class="sequence-status" id="seq-status">Watch the sequence...</div>
+                <div class="bolt-grid" id="bolt-grid"></div>
+            </div>
+        `;
+        const grid = document.getElementById('bolt-grid');
+        const statusEl = document.getElementById('seq-status');
+        const bolts = [];
+        for (let i = 0; i < levelData.boltCount; i++) {
+            const b = document.createElement('div');
+            b.className = 'bolt';
+            b.innerHTML = `🔩<div class="bolt-num">${i + 1}</div>`;
+            grid.appendChild(b);
+            bolts.push(b);
+        }
+
+        let playerStep = 0;
+        let inputEnabled = false;
+
+        activeSequenceState = {
+            getUnresolvedTargetEl: () => (inputEnabled ? bolts[levelData.sequence[playerStep]] : null)
+        };
+
+        function playSequence() {
+            inputEnabled = false;
+            statusEl.innerText = 'Watch the sequence...';
+            let i = 0;
+            function step() {
+                if (i > 0) bolts[levelData.sequence[i - 1]].classList.remove('bolt-lit');
+                if (i >= levelData.sequence.length) {
+                    statusEl.innerText = 'Your turn — tap them in order!';
+                    inputEnabled = true;
+                    playerStep = 0;
+                    return;
+                }
+                const idx = levelData.sequence[i];
+                bolts[idx].classList.add('bolt-lit');
+                playTone(440 + idx * 60, 0.25, 'triangle');
+                i++;
+                setTimeout(step, 550);
+            }
+            setTimeout(step, 500);
+        }
+
+        bolts.forEach((b, idx) => {
+            b.addEventListener('click', () => {
+                if (!gameActive || !inputEnabled) return;
+                const expected = levelData.sequence[playerStep];
+                if (idx === expected) {
+                    b.classList.add('bolt-correct');
+                    setTimeout(() => b.classList.remove('bolt-correct'), 260);
+                    playerStep++;
+                    if (playerStep >= levelData.sequence.length) {
+                        inputEnabled = false;
+                        registerCorrect();
+                        sfxLevelUp();
+                        setTimeout(() => advanceLevel(), 500);
+                    }
+                } else {
+                    b.classList.add('bolt-wrong');
+                    setTimeout(() => b.classList.remove('bolt-wrong'), 300);
+                    applyPenalty();
+                    playerStep = 0;
+                }
+            });
+        });
+
+        playSequence();
     }
 
     function setupDragDropLevel(levelData) {
@@ -647,13 +930,22 @@
 
         let remaining = levelData.items.length;
         const shuffled = [...levelData.items].sort(() => 0.5 - Math.random());
+        const elByItem = new Map();
 
-        // --- Click-to-select state (mouse/trackpad-friendly alternative to dragging) ---
+        activeDragState = {
+            getUnresolvedTargetEl: () => {
+                for (const [item, el] of elByItem.entries()) {
+                    if (item.isTarget && document.body.contains(el)) return el;
+                }
+                return null;
+            }
+        };
+
         let selectedEl = null;
         let selectedItem = null;
 
         function selectCard(el, item) {
-            if (selectedEl === el) { deselectCard(); return; } // tap again to deselect
+            if (selectedEl === el) { deselectCard(); return; }
             if (selectedEl) deselectCard();
             selectedEl = el;
             selectedItem = item;
@@ -665,23 +957,22 @@
             selectedItem = null;
         }
 
-        // Shared success/failure resolution used by both dragging and click-to-place
         function resolveChoice(el, item, guessedYes) {
             const correct = guessedYes === item.isTarget;
             if (correct) {
+                el.classList.remove('hint-glow');
                 el.classList.add('correct-flash');
                 el.style.pointerEvents = 'none';
                 registerCorrect();
                 setTimeout(() => {
                     el.remove();
                     remaining--;
-                    if (remaining <= 0) advanceLevel();
+                    if (remaining <= 0) { sfxLevelUp(); advanceLevel(); }
                 }, 260);
             } else {
                 el.classList.add('wrong-flash');
                 applyPenalty();
                 setTimeout(() => el.classList.remove('wrong-flash'), 300);
-                // Make sure it's back in normal tray flow (harmless if never dragged)
                 el.style.position = '';
                 el.style.left = '';
                 el.style.top = '';
@@ -716,6 +1007,7 @@
             el.className = 'drag-item';
             el.innerHTML = `<div>${item.icon}</div><div class="drag-label">${item.name}</div>`;
             tray.appendChild(el);
+            elByItem.set(item, el);
 
             let offsetX = 0, offsetY = 0;
             let pointerDown = false, dragMoved = false;
@@ -735,11 +1027,10 @@
 
                 if(!dragMoved) {
                     const moved = Math.hypot(e.clientX - downX, e.clientY - downY);
-                    if(moved < DRAG_THRESHOLD) return; // still just a press, not a drag yet
+                    if(moved < DRAG_THRESHOLD) return;
 
-                    // Movement crossed the threshold: start the actual drag now
                     dragMoved = true;
-                    deselectCard(); // a real drag overrides any pending click-selection
+                    deselectCard();
                     const rect = el.getBoundingClientRect();
                     offsetX = e.clientX - rect.left;
                     offsetY = e.clientY - rect.top;
@@ -758,7 +1049,6 @@
                 if(!pointerDown) return;
                 pointerDown = false;
 
-                // Safely release pointer capture to prevent touchscreen JS crashes (which causes stuck cards)
                 try {
                     if(el.hasPointerCapture(e.pointerId)) {
                         el.releasePointerCapture(e.pointerId);
@@ -766,7 +1056,6 @@
                 } catch(err) {}
 
                 if(!dragMoved) {
-                    // Never crossed the drag threshold -> treat as a click/tap to select
                     if(gameActive) selectCard(el, item);
                     return;
                 }
@@ -782,7 +1071,6 @@
                     return;
                 }
 
-                // Dropped outside any zone -> snap back to tray
                 el.style.position = '';
                 el.style.left = '';
                 el.style.top = '';
@@ -790,9 +1078,6 @@
                 el.style.height = '';
             });
 
-            // Safety net: if the browser ever cancels the pointer stream mid-drag
-            // (e.g. alt-tab, OS gesture, losing capture), always snap the card back
-            // instead of leaving it stranded on screen.
             el.addEventListener('pointercancel', () => {
                 pointerDown = false;
                 if(dragMoved) {
@@ -816,6 +1101,55 @@
         });
     }
 
+    function useHint() {
+        if (!gameActive || hintsLeft <= 0) return;
+        if (timeLeft <= HINT_COST) return;
+
+        hintsLeft--;
+        document.getElementById('hint-count').innerText = hintsLeft;
+        if (hintsLeft <= 0) document.getElementById('hint-btn').disabled = true;
+
+        sfxHint();
+        timeLeft = Math.max(0.1, timeLeft - HINT_COST);
+        document.getElementById('timer-display').innerText = timeLeft.toFixed(1) + 's';
+        showToast('🔍 Hint used (-5s)', false);
+
+        if (activeCanvasState) {
+            const { ctx, targets, foundKeys, render } = activeCanvasState;
+            const target = targets.find(t => !foundKeys.has(t.cellKey || 'single'));
+            if (target) {
+                let pulses = 0;
+                const pulseInterval = setInterval(() => {
+                    render();
+                    ctx.beginPath();
+                    ctx.arc(target.x, target.y, target.radius + 10, 0, Math.PI * 2);
+                    ctx.strokeStyle = 'rgba(255,193,7,0.9)';
+                    ctx.lineWidth = 4;
+                    ctx.setLineDash([6, 6]);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                    pulses++;
+                    if (pulses >= 4) {
+                        clearInterval(pulseInterval);
+                        render();
+                    }
+                }, 300);
+            }
+        } else if (activeDragState) {
+            const el = activeDragState.getUnresolvedTargetEl();
+            if (el) {
+                el.classList.add('hint-glow');
+                setTimeout(() => el.classList.remove('hint-glow'), 2400);
+            }
+        } else if (activeSequenceState) {
+            const el = activeSequenceState.getUnresolvedTargetEl();
+            if (el) {
+                el.classList.add('hint-glow');
+                setTimeout(() => el.classList.remove('hint-glow'), 2400);
+            }
+        }
+    }
+
     function advanceLevel() {
         currentLevelIndex++;
         loadLevel();
@@ -823,25 +1157,35 @@
 
     function applyPenalty() {
         interactiveArea.classList.remove('penalty-flash');
-        // Trigger reflow to restart animation
         void interactiveArea.offsetWidth;
         interactiveArea.classList.add('penalty-flash');
         registerMistake();
-        timeLeft = Math.max(0, timeLeft - 2.0);
+        const penalty = GAME_SETTINGS.penalty;
+        timeLeft = Math.max(0, timeLeft - penalty);
         document.getElementById('timer-display').innerText = timeLeft.toFixed(1) + 's';
     }
 
     function startTimer() {
         clearInterval(timer);
+        let lastTickSecond = Math.ceil(timeLeft);
         timer = setInterval(() => {
             timeLeft -= 0.1;
+            const timerEl = document.getElementById('timer-display');
+            if (timeLeft <= 10) {
+                timerEl.classList.add('low-time');
+                const wholeSecond = Math.ceil(timeLeft);
+                if (wholeSecond !== lastTickSecond && wholeSecond >= 0) {
+                    lastTickSecond = wholeSecond;
+                    sfxTick();
+                }
+            }
             if(timeLeft <= 0) {
                 timeLeft = 0;
                 clearInterval(timer);
+                sfxLose();
                 endGame(false);
             }
-            // Ensure we never show negative decimals like -0.1s
-            document.getElementById('timer-display').innerText = Math.max(0, timeLeft).toFixed(1) + 's';
+            timerEl.innerText = Math.max(0, timeLeft).toFixed(1) + 's';
         }, 100);
     }
 
@@ -869,6 +1213,16 @@
         return { badge: "🥉 JUNIOR AUDITOR", note: "You passed, but the decoys had a field day." };
     }
 
+    function computeScore(passed) {
+        const levelsCleared = passed ? levels.length : currentLevelIndex;
+        const clearBonus = levelsCleared * 1000;
+        const mistakePenalty = mistakes * 60;
+        const timeBonus = passed ? Math.round(timeLeft * 12) : 0;
+        const streakBonus = maxStreak * 25;
+        const total = Math.max(0, clearBonus - mistakePenalty + timeBonus + streakBonus);
+        return { total, clearBonus, mistakePenalty, timeBonus, streakBonus, levelsCleared };
+    }
+
     function endGame(passed) {
         gameActive = false;
         clearInterval(timer);
@@ -889,11 +1243,18 @@
             verdictBox.innerText = "PASS";
             summary.innerHTML = `${rank.note}<br><br><strong>Cycle Time:</strong> ${totalDuration} seconds &nbsp;|&nbsp; <strong>Mistakes:</strong> ${mistakes}<br><em>Award Grand Prize!</em>`;
             spawnConfetti();
+            sfxWin();
         } else {
             verdictBox.className = "verdict fail-text";
             verdictBox.innerText = "FAIL";
-            summary.innerHTML = `${rank.note}<br><br><strong>Items Cleared:</strong> ${currentLevelIndex}/5 &nbsp;|&nbsp; <strong>Mistakes:</strong> ${mistakes}<br><em>Hand over Consolation Treat.</em>`;
+            summary.innerHTML = `${rank.note}<br><br><strong>Items Cleared:</strong> ${currentLevelIndex}/${levels.length} &nbsp;|&nbsp; <strong>Mistakes:</strong> ${mistakes}<br><em>Hand over Consolation Treat.</em>`;
         }
+
+        const scoreResult = computeScore(passed);
+        document.getElementById('final-score').innerText = scoreResult.total;
+        document.getElementById('score-breakdown').innerHTML =
+            `Levels cleared: +${scoreResult.clearBonus} &nbsp;|&nbsp; Mistakes: -${scoreResult.mistakePenalty}<br>` +
+            `Time bonus: +${scoreResult.timeBonus} &nbsp;|&nbsp; Best streak (${maxStreak}): +${scoreResult.streakBonus}`;
     }
 
     function switchScreen(screenId) {
