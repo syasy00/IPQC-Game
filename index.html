@@ -11,6 +11,7 @@
             --panel-bg: #2a2a2a;
             --light: #F4F4F4;
             --success: #28a745;
+            --gold: #ffc107;
         }
 
         body {
@@ -42,6 +43,13 @@
             position: relative;
         }
 
+        /* More breathing room + bigger click targets on laptop-sized screens */
+        @media (min-width: 700px) {
+            #game-container { max-width: 680px; padding: 30px; }
+            .drag-item { width: 100px; height: 115px; font-size: 38px; }
+            .drop-zone { min-height: 140px; font-size: 17px; }
+        }
+
         header {
             display: flex;
             justify-content: space-between;
@@ -54,7 +62,7 @@
         .timer {
             font-size: 28px;
             font-weight: 900;
-            color: #ffc107;
+            color: var(--gold);
             background: #111;
             padding: 5px 20px;
             border-radius: 8px;
@@ -71,6 +79,13 @@
             color: #fff;
             text-transform: uppercase;
             letter-spacing: 0.5px;
+        }
+
+        .hint {
+            font-size: 13px;
+            color: #999;
+            margin: -6px 0 12px;
+            font-style: italic;
         }
 
         /* Screens */
@@ -126,13 +141,18 @@
             line-height: 1.4;
             color: #ccc;
             background: #111;
-            transition: background 0.15s, border-color 0.15s, transform 0.15s;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s, transform 0.15s, filter 0.15s;
         }
         .drop-zone.yes { border-color: rgba(40,167,69,0.6); }
         .drop-zone.no { border-color: rgba(174,0,0,0.6); }
         .drop-zone.hover-active { transform: scale(1.03); }
         .drop-zone.yes.hover-active { background: #123a1c; border-color: var(--success); }
         .drop-zone.no.hover-active { background: #3a1212; border-color: var(--primary); }
+
+        @media (hover: hover) and (pointer: fine) {
+            .drop-zone:hover { filter: brightness(1.15); }
+        }
 
         .tray {
             flex: 1;
@@ -158,9 +178,12 @@
             justify-content: center;
             cursor: grab;
             touch-action: none;
+            -webkit-user-drag: none;
+            user-drag: none;
             font-size: 34px;
             box-sizing: border-box;
             box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
         }
         .drag-item .drag-label {
             font-size: 12px;
@@ -171,14 +194,34 @@
             padding: 0 4px;
             line-height: 1.2;
         }
+
+        /* Mouse-only hover cue so laptop users know cards are interactive */
+        @media (hover: hover) and (pointer: fine) {
+            .drag-item:hover:not(.dragging):not(.selected) {
+                transform: translateY(-4px);
+                border-color: #888;
+                box-shadow: 0 8px 12px rgba(0,0,0,0.4);
+            }
+        }
+
+        .drag-item.selected {
+            border-color: var(--gold) !important;
+            box-shadow: 0 0 0 3px rgba(255,193,7,0.5), 0 8px 12px rgba(0,0,0,0.4);
+            transform: translateY(-4px);
+        }
+
         .drag-item.dragging {
             position: fixed;
             z-index: 1000;
-            pointer-events: none;
+            /* NOTE: pointer-events was intentionally removed here — see fix notes.
+               Leaving it "none" while the pointer is captured is what caused
+               cards to freeze mid-drag and never receive their pointerup. */
             box-shadow: 0 12px 25px rgba(0,0,0,0.7);
             transform: scale(1.15);
+            transform-origin: top left; /* keeps the card anchored under the cursor as it scales */
             opacity: 0.95;
             border-color: #fff;
+            cursor: grabbing;
         }
         .drag-item.wrong-flash {
             animation: shake 0.3s;
@@ -214,6 +257,9 @@
             box-shadow: 0 5px 15px rgba(174,0,0,0.5);
         }
         .btn:active { transform: scale(0.95); }
+        @media (hover: hover) and (pointer: fine) {
+            .btn:hover { filter: brightness(1.1); }
+        }
         .verdict { font-size: 56px; font-weight: 900; margin: 20px 0; text-transform: uppercase; }
         .pass-text { color: var(--success); }
         .fail-text { color: var(--primary); }
@@ -233,7 +279,7 @@
             • You have exactly <strong>2 minutes</strong>.<br>
             • Complete 5 levels of quality control.<br>
             • Read the yellow banner to know what to do.<br>
-            • Find defects, then drag & drop to classify the correct tools!
+            • Find defects, then drag & drop (or click a tool, then click a bin) to classify!
         </div>
         <button class="btn" onclick="startGame()">Start Audit</button>
     </div>
@@ -270,6 +316,10 @@
     let startTime;
 
     const interactiveArea = document.getElementById('interactive-area');
+
+    // Distance (px) the pointer must move before a press counts as a "drag"
+    // rather than a "click". Below this, we treat it as a select-tap instead.
+    const DRAG_THRESHOLD = 6;
 
     // Define the 5 levels cleanly
     const levels = [
@@ -467,6 +517,7 @@
                     <div class="drop-zone yes" id="zone-yes">✅<br>INSPECTION<br>TOOL</div>
                     <div class="drop-zone no" id="zone-no">❌<br>NOT A<br>TOOL</div>
                 </div>
+                <div class="hint">Tip: drag a card into a bin — or click a card, then click a bin.</div>
                 <div class="tray" id="tray"></div>
             </div>
         `;
@@ -477,6 +528,60 @@
 
         let remaining = levelData.items.length;
         const shuffled = [...levelData.items].sort(() => 0.5 - Math.random());
+
+        // --- Click-to-select state (mouse/trackpad-friendly alternative to dragging) ---
+        let selectedEl = null;
+        let selectedItem = null;
+
+        function selectCard(el, item) {
+            if (selectedEl === el) { deselectCard(); return; } // tap again to deselect
+            if (selectedEl) deselectCard();
+            selectedEl = el;
+            selectedItem = item;
+            el.classList.add('selected');
+        }
+        function deselectCard() {
+            if (selectedEl) selectedEl.classList.remove('selected');
+            selectedEl = null;
+            selectedItem = null;
+        }
+
+        // Shared success/failure resolution used by both dragging and click-to-place
+        function resolveChoice(el, item, guessedYes) {
+            const correct = guessedYes === item.isTarget;
+            if (correct) {
+                el.classList.add('correct-flash');
+                el.style.pointerEvents = 'none';
+                setTimeout(() => {
+                    el.remove();
+                    remaining--;
+                    if (remaining <= 0) advanceLevel();
+                }, 260);
+            } else {
+                el.classList.add('wrong-flash');
+                applyPenalty();
+                setTimeout(() => el.classList.remove('wrong-flash'), 300);
+                // Make sure it's back in normal tray flow (harmless if never dragged)
+                el.style.position = '';
+                el.style.left = '';
+                el.style.top = '';
+                el.style.width = '';
+                el.style.height = '';
+            }
+        }
+
+        zoneYes.addEventListener('click', () => {
+            if (!gameActive || !selectedEl) return;
+            const el = selectedEl, item = selectedItem;
+            deselectCard();
+            resolveChoice(el, item, true);
+        });
+        zoneNo.addEventListener('click', () => {
+            if (!gameActive || !selectedEl) return;
+            const el = selectedEl, item = selectedItem;
+            deselectCard();
+            resolveChoice(el, item, false);
+        });
 
         function getZoneAt(x, y) {
             const ry = zoneYes.getBoundingClientRect();
@@ -492,26 +597,37 @@
             el.innerHTML = `<div>${item.icon}</div><div class="drag-label">${item.name}</div>`;
             tray.appendChild(el);
 
-            let offsetX = 0, offsetY = 0, dragging = false, startW = 0, startH = 0;
+            let offsetX = 0, offsetY = 0;
+            let pointerDown = false, dragMoved = false;
+            let downX = 0, downY = 0;
 
             el.addEventListener('pointerdown', (e) => {
                 if(!gameActive) return;
-                dragging = true;
+                pointerDown = true;
+                dragMoved = false;
+                downX = e.clientX;
+                downY = e.clientY;
                 el.setPointerCapture(e.pointerId);
-                const rect = el.getBoundingClientRect();
-                // Fix offset for the scale transform applied while dragging
-                offsetX = (e.clientX - rect.left) / 1.15;
-                offsetY = (e.clientY - rect.top) / 1.15;
-                startW = rect.width;
-                startH = rect.height;
-                el.style.width = startW + 'px';
-                el.style.height = startH + 'px';
-                el.classList.add('dragging');
-                moveTo(e.clientX, e.clientY);
             });
 
             el.addEventListener('pointermove', (e) => {
-                if(!dragging) return;
+                if(!pointerDown) return;
+
+                if(!dragMoved) {
+                    const moved = Math.hypot(e.clientX - downX, e.clientY - downY);
+                    if(moved < DRAG_THRESHOLD) return; // still just a press, not a drag yet
+
+                    // Movement crossed the threshold: start the actual drag now
+                    dragMoved = true;
+                    deselectCard(); // a real drag overrides any pending click-selection
+                    const rect = el.getBoundingClientRect();
+                    offsetX = e.clientX - rect.left;
+                    offsetY = e.clientY - rect.top;
+                    el.style.width = rect.width + 'px';
+                    el.style.height = rect.height + 'px';
+                    el.classList.add('dragging');
+                }
+
                 moveTo(e.clientX, e.clientY);
                 const z = getZoneAt(e.clientX, e.clientY);
                 zoneYes.classList.toggle('hover-active', z === 'yes');
@@ -519,9 +635,9 @@
             });
 
             el.addEventListener('pointerup', (e) => {
-                if(!dragging) return;
-                dragging = false;
-                
+                if(!pointerDown) return;
+                pointerDown = false;
+
                 // Safely release pointer capture to prevent touchscreen JS crashes (which causes stuck cards)
                 try {
                     if(el.hasPointerCapture(e.pointerId)) {
@@ -529,36 +645,47 @@
                     }
                 } catch(err) {}
 
+                if(!dragMoved) {
+                    // Never crossed the drag threshold -> treat as a click/tap to select
+                    if(gameActive) selectCard(el, item);
+                    return;
+                }
+
                 el.classList.remove('dragging');
                 zoneYes.classList.remove('hover-active');
                 zoneNo.classList.remove('hover-active');
+                dragMoved = false;
 
                 const dropTarget = getZoneAt(e.clientX, e.clientY);
                 if(dropTarget) {
-                    const guessedTool = (dropTarget === 'yes');
-                    const correct = guessedTool === item.isTarget;
-                    if(correct) {
-                        el.classList.add('correct-flash');
-                        el.style.pointerEvents = 'none';
-                        setTimeout(() => {
-                            el.remove();
-                            remaining--;
-                            if(remaining <= 0) advanceLevel();
-                        }, 260);
-                        return; // Keep the card over the bin while it animates out
-                    } else {
-                        el.classList.add('wrong-flash');
-                        applyPenalty();
-                        setTimeout(() => el.classList.remove('wrong-flash'), 300);
-                    }
+                    resolveChoice(el, item, dropTarget === 'yes');
+                    return;
                 }
-                
-                // If dropped outside or dropped in the wrong bin, snap it back to the tray
+
+                // Dropped outside any zone -> snap back to tray
                 el.style.position = '';
                 el.style.left = '';
                 el.style.top = '';
                 el.style.width = '';
                 el.style.height = '';
+            });
+
+            // Safety net: if the browser ever cancels the pointer stream mid-drag
+            // (e.g. alt-tab, OS gesture, losing capture), always snap the card back
+            // instead of leaving it stranded on screen.
+            el.addEventListener('pointercancel', () => {
+                pointerDown = false;
+                if(dragMoved) {
+                    el.classList.remove('dragging');
+                    zoneYes.classList.remove('hover-active');
+                    zoneNo.classList.remove('hover-active');
+                    el.style.position = '';
+                    el.style.left = '';
+                    el.style.top = '';
+                    el.style.width = '';
+                    el.style.height = '';
+                }
+                dragMoved = false;
             });
 
             function moveTo(x, y) {
