@@ -41,6 +41,7 @@
             text-align: center;
             box-sizing: border-box;
             position: relative;
+            overflow: hidden;
         }
 
         /* More breathing room + bigger click targets on laptop-sized screens */
@@ -57,7 +58,12 @@
             margin-bottom: 15px;
             border-bottom: 2px solid #444;
             padding-bottom: 10px;
+            gap: 10px;
         }
+
+        .header-left { text-align: left; }
+        .level-label { font-size: 18px; font-weight: bold; }
+        .mistake-label { font-size: 12px; color: #ff8080; margin-top: 2px; font-weight: bold; }
 
         .timer {
             font-size: 28px;
@@ -67,6 +73,7 @@
             padding: 5px 20px;
             border-radius: 8px;
             border: 2px solid #444;
+            flex-shrink: 0;
         }
 
         .instruction-banner {
@@ -105,6 +112,61 @@
         }
         .penalty-flash {
             animation: penaltyFlash 0.3s ease-out;
+        }
+
+        /* Toast (fun feedback popup) */
+        .toast {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.85);
+            border: 2px solid var(--gold);
+            color: #fff;
+            font-weight: 900;
+            font-size: 16px;
+            padding: 8px 18px;
+            border-radius: 20px;
+            white-space: nowrap;
+            z-index: 500;
+            pointer-events: none;
+            animation: toastPop 1s ease-out forwards;
+        }
+        .toast.bad { border-color: var(--primary); }
+        @keyframes toastPop {
+            0% { opacity: 0; transform: translate(-50%, 10px) scale(0.8); }
+            15% { opacity: 1; transform: translate(-50%, 0) scale(1.05); }
+            30% { transform: translate(-50%, 0) scale(1); }
+            80% { opacity: 1; }
+            100% { opacity: 0; transform: translate(-50%, -18px) scale(1); }
+        }
+
+        /* Confetti */
+        .confetti-piece {
+            position: absolute;
+            top: -30px;
+            font-size: 22px;
+            z-index: 50;
+            animation: confettiFall 2.2s ease-in forwards;
+            pointer-events: none;
+        }
+        @keyframes confettiFall {
+            0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(420px) rotate(540deg); opacity: 0; }
+        }
+
+        /* Rank badge on end screen */
+        .rank-badge {
+            display: inline-block;
+            font-size: 18px;
+            font-weight: 900;
+            background: #111;
+            border: 2px solid var(--gold);
+            color: var(--gold);
+            padding: 8px 20px;
+            border-radius: 20px;
+            margin-bottom: 15px;
+            letter-spacing: 0.5px;
         }
 
         /* Canvas for Chassis Levels */
@@ -271,15 +333,17 @@
     
     <!-- START SCREEN -->
     <div id="start-screen" class="screen active">
-        <h1 style="color: var(--primary); margin-top:0; font-size: 32px;">IPQC AUDITOR CHALLENGE</h1>
+        <h1 style="color: var(--primary); margin-top:0; font-size: 32px;">🕵️ IPQC AUDITOR CHALLENGE</h1>
         <p style="color: #aaa; font-size: 16px;">Process Inspection Verification Game</p>
         <hr style="border: 1px solid #444; margin: 20px 0;">
         <div style="text-align: left; background:#111; padding: 20px; border-radius: 8px; margin-bottom: 25px; font-size:16px; line-height: 1.6;">
             <strong>INSTRUCTIONS:</strong><br>
-            • You have exactly <strong>2 minutes</strong>.<br>
+            • You have exactly <strong>2 minutes</strong> ⏱️.<br>
             • Complete 5 levels of quality control.<br>
             • Read the yellow banner to know what to do.<br>
-            • Find defects, then drag & drop (or click a tool, then click a bin) to classify!
+            • Find defects, then drag & drop (or click a tool, then click a bin) to classify!<br>
+            • ⚠️ Beware of look-alike decoys hiding in the tool tray — read the label, not just the icon!<br>
+            • Chain correct answers for a 🔥 combo bonus streak.
         </div>
         <button class="btn" onclick="startGame()">Start Audit</button>
     </div>
@@ -287,7 +351,10 @@
     <!-- GAMEPLAY SCREEN -->
     <div id="game-screen" class="screen">
         <header>
-            <div style="font-size: 20px; font-weight: bold;">Level: <span id="current-level">1</span>/5</div>
+            <div class="header-left">
+                <div class="level-label">Level: <span id="current-level">1</span>/5</div>
+                <div class="mistake-label">❌ Mistakes: <span id="mistake-count">0</span></div>
+            </div>
             <div class="timer" id="timer-display">120.0s</div>
         </header>
         
@@ -301,6 +368,7 @@
     <div id="end-screen" class="screen">
         <h2 style="margin-top:0; color: #fff;">AUDIT REPORT</h2>
         <div id="verdict-container" class="verdict">PASS</div>
+        <div id="rank-badge" class="rank-badge">🏆 PERFECT AUDITOR</div>
         <p id="summary-text" style="font-size: 18px; color: #bbb; line-height: 1.5; margin-bottom: 30px;"></p>
         <button class="btn" style="background-color: #555; box-shadow:none;" onclick="resetToStart()">Next Auditor</button>
     </div>
@@ -314,18 +382,25 @@
     let currentLevelIndex = 0;
     let gameActive = false;
     let startTime;
+    let mistakes = 0;
+    let streak = 0;
 
     const interactiveArea = document.getElementById('interactive-area');
+    const gameContainer = document.getElementById('game-container');
 
     // Distance (px) the pointer must move before a press counts as a "drag"
     // rather than a "click". Below this, we treat it as a select-tap instead.
     const DRAG_THRESHOLD = 6;
 
+    const GOOD_TOASTS = ["🎯 Sharp eyes!", "🕵️ Nailed it!", "✅ Correct call!", "👌 Nice catch!"];
+    const STREAK_TOASTS = { 3: "🔥 Combo x3!", 5: "🔥🔥 Combo x5! On fire!", 8: "🔥🔥🔥 Combo x8! Unstoppable!" };
+    const BAD_TOASTS = ["🚫 Gotcha — decoy!", "⚠️ -2s Penalty!", "❌ That's not it!", "🙈 Close, but no!"];
+
     // Define the 5 levels cleanly
     const levels = [
         {
             type: 'canvas',
-            instruction: "LEVEL 1: Find the incomplete AE logo!",
+            instruction: "🔎 LEVEL 1: Find the incomplete AE logo!",
             targetX: 205, targetY: 407, targetRadius: 25, // Specifically targets the 'AE' part
             render: function(canvas, ctx) {
                 drawChassisBase(canvas, ctx);
@@ -341,7 +416,7 @@
         },
         {
             type: 'canvas',
-            instruction: "LEVEL 2: Find the unpunched solid vent hole!",
+            instruction: "🔎 LEVEL 2: Find the unpunched solid vent hole!",
             targetX: 212, targetY: 212, targetRadius: 30, // Centered on column 4, row 5
             render: function(canvas, ctx) {
                 drawChassisBase(canvas, ctx);
@@ -365,7 +440,7 @@
         },
         {
             type: 'canvas',
-            instruction: "LEVEL 3: Find the dented chassis panel!",
+            instruction: "🔎 LEVEL 3: Find the dented chassis panel!",
             targetX: 220, targetY: 350, targetRadius: 35,
             render: function(canvas, ctx) {
                 drawChassisBase(canvas, ctx);
@@ -394,25 +469,37 @@
             }
         },
         {
+            // Real tools from the IPQC inspection tray: TQC Template Gauge, Allen Key,
+            // Screw Bit, Safety Goggle. Decoys are everyday items chosen to LOOK like
+            // these tools at a glance (same rough shape/icon family) to test attention.
             type: 'dragdrop',
-            instruction: "LEVEL 4: Drag every INSPECTION TOOL into the correct bin!",
+            instruction: "🧰 LEVEL 4: Drag every INSPECTION TOOL into the correct bin!",
             items: [
-                { name: "TQC Template Gauge", icon: "🎛️", isTarget: true },
-                { name: "Vernier Caliper", icon: "📏", isTarget: true },
-                { name: "Credit Card", icon: "💳", isTarget: false },
-                { name: "Blank Paper", icon: "📄", isTarget: false },
-                { name: "Staff ID Badge", icon: "🪪", isTarget: false }
+                { name: "TQC Template Gauge", icon: "📇", isTarget: true },
+                { name: "Allen Key", icon: "🔧", isTarget: true },
+                { name: "Screw Bit", icon: "🪛", isTarget: true },
+                { name: "Safety Goggle", icon: "🥽", isTarget: true },
+                { name: "Staff ID Badge", icon: "🪪", isTarget: false },
+                { name: "Standard Wrench", icon: "🔩", isTarget: false },
+                { name: "Pencil", icon: "✏️", isTarget: false },
+                { name: "Sunglasses", icon: "😎", isTarget: false }
             ]
         },
         {
+            // Real tools: Verify Jig (2x Connector), Inspection Mirror, Loupe, Flashlight.
+            // Decoys mirror their silhouette/emoji closely so players must read labels,
+            // not just glance at the icon.
             type: 'dragdrop',
-            instruction: "LEVEL 5: Drag every INSPECTION TOOL into the correct bin!",
+            instruction: "🧰 LEVEL 5: Drag every INSPECTION TOOL into the correct bin!",
             items: [
-                { name: "Inspection Mirror", icon: "🔍", isTarget: true },
-                { name: "Feeler Gauge", icon: "📐", isTarget: true },
-                { name: "Kitchen Spoon", icon: "🥄", isTarget: false },
-                { name: "Paintbrush", icon: "🖌️", isTarget: false },
-                { name: "Standard Wrench", icon: "🔧", isTarget: false }
+                { name: "Verify Jig (2x Connector)", icon: "🧩", isTarget: true },
+                { name: "Inspection Mirror", icon: "🪞", isTarget: true },
+                { name: "Loupe", icon: "🔍", isTarget: true },
+                { name: "Flashlight", icon: "🔦", isTarget: true },
+                { name: "Ice Cube Tray", icon: "🧊", isTarget: false },
+                { name: "Selfie Stick", icon: "🤳", isTarget: false },
+                { name: "Toy Magnifying Glass", icon: "🔎", isTarget: false },
+                { name: "Laser Pointer Pen", icon: "🖊️", isTarget: false }
             ]
         }
     ];
@@ -440,10 +527,41 @@
         }
     }
 
+    function showToast(text, bad) {
+        const t = document.createElement('div');
+        t.className = 'toast' + (bad ? ' bad' : '');
+        t.innerText = text;
+        gameContainer.appendChild(t);
+        setTimeout(() => t.remove(), 1000);
+    }
+
+    function pickRandom(arr) {
+        return arr[Math.floor(Math.random() * arr.length)];
+    }
+
+    function registerCorrect() {
+        streak++;
+        if (STREAK_TOASTS[streak]) {
+            showToast(STREAK_TOASTS[streak], false);
+        } else {
+            showToast(pickRandom(GOOD_TOASTS), false);
+        }
+    }
+
+    function registerMistake() {
+        streak = 0;
+        mistakes++;
+        document.getElementById('mistake-count').innerText = mistakes;
+        showToast(pickRandom(BAD_TOASTS), true);
+    }
+
     function startGame() {
         switchScreen('game-screen');
         currentLevelIndex = 0;
         timeLeft = TOTAL_TIME;
+        mistakes = 0;
+        streak = 0;
+        document.getElementById('mistake-count').innerText = 0;
         gameActive = true;
         startTime = Date.now();
         startTimer();
@@ -492,6 +610,7 @@
             if(distance <= levelData.targetRadius) {
                 // Success: Give visual feedback before advancing
                 gameActive = false; // block extra clicks
+                registerCorrect();
                 ctx.beginPath();
                 ctx.arc(levelData.targetX, levelData.targetY, levelData.targetRadius, 0, Math.PI * 2);
                 ctx.strokeStyle = '#28a745';
@@ -517,7 +636,7 @@
                     <div class="drop-zone yes" id="zone-yes">✅<br>INSPECTION<br>TOOL</div>
                     <div class="drop-zone no" id="zone-no">❌<br>NOT A<br>TOOL</div>
                 </div>
-                <div class="hint">Tip: drag a card into a bin — or click a card, then click a bin.</div>
+                <div class="hint">Tip: drag a card into a bin — or click a card, then click a bin. Some cards look alike — read the label!</div>
                 <div class="tray" id="tray"></div>
             </div>
         `;
@@ -552,6 +671,7 @@
             if (correct) {
                 el.classList.add('correct-flash');
                 el.style.pointerEvents = 'none';
+                registerCorrect();
                 setTimeout(() => {
                     el.remove();
                     remaining--;
@@ -706,6 +826,7 @@
         // Trigger reflow to restart animation
         void interactiveArea.offsetWidth;
         interactiveArea.classList.add('penalty-flash');
+        registerMistake();
         timeLeft = Math.max(0, timeLeft - 2.0);
         document.getElementById('timer-display').innerText = timeLeft.toFixed(1) + 's';
     }
@@ -724,23 +845,54 @@
         }, 100);
     }
 
+    function spawnConfetti() {
+        const pieces = ["🎉", "✅", "🏅", "🎊", "⭐"];
+        for (let i = 0; i < 24; i++) {
+            const span = document.createElement('div');
+            span.className = 'confetti-piece';
+            span.innerText = pickRandom(pieces);
+            span.style.left = Math.random() * 100 + '%';
+            span.style.animationDelay = (Math.random() * 0.5) + 's';
+            span.style.fontSize = (16 + Math.random() * 14) + 'px';
+            gameContainer.appendChild(span);
+            setTimeout(() => span.remove(), 2800);
+        }
+    }
+
+    function getRank(passed) {
+        if (!passed) {
+            return { badge: "🚨 AUDIT INCOMPLETE", note: "Time expired before the audit was finished." };
+        }
+        if (mistakes === 0) return { badge: "🏆 PERFECT AUDITOR", note: "Zero mistakes — flawless inspection run!" };
+        if (mistakes <= 2) return { badge: "🥇 SENIOR AUDITOR", note: "Sharp eyes, only a couple of slip-ups." };
+        if (mistakes <= 5) return { badge: "🥈 QUALIFIED AUDITOR", note: "Solid pass, but a few decoys got you." };
+        return { badge: "🥉 JUNIOR AUDITOR", note: "You passed, but the decoys had a field day." };
+    }
+
     function endGame(passed) {
         gameActive = false;
         clearInterval(timer);
         switchScreen('end-screen');
 
         const verdictBox = document.getElementById('verdict-container');
+        const rankBadge = document.getElementById('rank-badge');
         const summary = document.getElementById('summary-text');
         const totalDuration = ((Date.now() - startTime) / 1000).toFixed(1);
+        const rank = getRank(passed);
+
+        rankBadge.innerText = rank.badge;
+        rankBadge.style.borderColor = passed ? 'var(--gold)' : 'var(--primary)';
+        rankBadge.style.color = passed ? 'var(--gold)' : '#ff8080';
 
         if(passed) {
             verdictBox.className = "verdict pass-text";
             verdictBox.innerText = "PASS";
-            summary.innerHTML = `Audit complete! All defects & tools verified.<br><br><strong>Cycle Time:</strong> ${totalDuration} seconds<br><em>Award Grand Prize!</em>`;
+            summary.innerHTML = `${rank.note}<br><br><strong>Cycle Time:</strong> ${totalDuration} seconds &nbsp;|&nbsp; <strong>Mistakes:</strong> ${mistakes}<br><em>Award Grand Prize!</em>`;
+            spawnConfetti();
         } else {
             verdictBox.className = "verdict fail-text";
             verdictBox.innerText = "FAIL";
-            summary.innerHTML = `Audit failed! Time expired or items missed.<br><br><strong>Items Cleared:</strong> ${currentLevelIndex}/5<br><em>Hand over Consolation Treat.</em>`;
+            summary.innerHTML = `${rank.note}<br><br><strong>Items Cleared:</strong> ${currentLevelIndex}/5 &nbsp;|&nbsp; <strong>Mistakes:</strong> ${mistakes}<br><em>Hand over Consolation Treat.</em>`;
         }
     }
 
